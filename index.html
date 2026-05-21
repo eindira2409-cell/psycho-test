@@ -213,48 +213,45 @@
                 setIsLoading(true);
                 setStep(10);
                 
+                // Берем ключ из памяти браузера, а не из кода
+                const activeKey = localStorage.getItem('userApiKey');
+                
+                if (!activeKey) {
+                    const key = prompt("Пожалуйста, введите ваш рабочий API-ключ от Gemini:");
+                    if (!key) {
+                        setAiResult("Без ключа ИИ не может работать.");
+                        setIsLoading(false);
+                        return;
+                    }
+                    localStorage.setItem('userApiKey', key);
+                }
+
                 const prompt = `
                 Действуй как опытный психолог, эксперт по психосоматике и коуч. Твоя задача - проанализировать ответы клиента и выдать глубокую, эмпатичную расшифровку его первопричины.
                 Язык ответа: ${lang === 'ru' ? 'Русский' : 'Казахский'}.
-                
                 Данные клиента:
                 Имя: ${formData.name}
                 Здоровье: ${formData.health}
                 Отношения: ${formData.relationships}
                 Деньги/Карьера: ${formData.money}
                 Самооценка/Духовность: ${formData.selfEsteem}
-                Давность проблемы: ${formData.time === 'Свой вариант' || formData.time === 'Өз нұсқам' ? formData.customTime : formData.time}
-                Триггерная ситуация: ${formData.situation}
-                Эмоции в тот момент: ${formData.emotions.join(', ')} ${formData.customEmotion}
-
-                СТРУКТУРА ОТВЕТА (Пиши чисто, структурно, без лишней воды):
-                1. Психосоматика и Первопричина: Объясни, как ситуация и эмоции застряли в теле и привели к описанным проблемам.
-                2. Разговор с телом: Выбери 1 или 2 органа/зоны тела, которые страдают у клиента больше всего. Используй метафоры и дай исцеляющую фразу.
-                3. Вопросы для саморефлексии (3-4 вопроса).
-                4. Заключительная мысль: "Для дальнейшего решения проблем переходи в WhatsApp на консультацию. Если не хочешь, ты можешь сам с помощью вопросов найти свою первопричину и говорить лечащие слова."
+                Давность: ${formData.time}
+                Ситуация: ${formData.situation}
+                Эмоции: ${formData.emotions.join(', ')}
                 `;
 
                 try {
-                    // Магия обхода блокировок GitHub: Ключ зашифрован в Base64.
-                    // Робот не видит здесь пароля, а код расшифровывает его в нужный момент.
-                    const encodedKey = "QUl6YVN5Q05HREtFZnlBRGRUWEtmN1FVdGdubDhYWUs3TEpGUkRB";
-                    const activeKey = atob(encodedKey); 
-
-                    const data = await fetchWithBackoff(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${activeKey}`, {
+                    const data = await fetchWithBackoff(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${localStorage.getItem('userApiKey')}`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            contents: [{ parts: [{ text: prompt }] }]
-                        })
+                        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
                     });
                     
-                    let aiText = data.candidates?.[0]?.content?.parts?.[0]?.text || (lang === 'ru' ? "Система временно недоступна." : "Жүйе уақытша қолжетімсіз.");
+                    let aiText = data.candidates?.[0]?.content?.parts?.[0]?.text || "Ошибка получения ответа.";
                     setAiResult(aiText);
                     saveToDb(aiText);
                 } catch (error) {
-                    const fallbackText = lang === 'ru' ? "Произошла техническая ошибка. Но ваши ответы сохранены! Напишите мне в WhatsApp для получения разбора." : "Техникалық қате орын алды. Бірақ сіздің жауаптарыңыз сақталды! Талдау алу үшін маған WhatsApp-қа жазыңыз.";
-                    setAiResult(fallbackText);
-                    saveToDb(fallbackText);
+                    setAiResult("Ошибка API. Проверьте ваш ключ в настройках (можно очистить кеш браузера, чтобы ввести ключ заново).");
                 } finally {
                     setIsLoading(false);
                 }
