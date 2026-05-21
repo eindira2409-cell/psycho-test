@@ -210,52 +210,54 @@
             };
 
             const generateAIResponse = async () => {
-                setIsLoading(true);
-                setStep(10);
-                
-                // Берем ключ из памяти браузера, а не из кода
-                const activeKey = localStorage.getItem('userApiKey');
-                
-                if (!activeKey) {
-                    const key = prompt("Пожалуйста, введите ваш рабочий API-ключ от Gemini:");
-                    if (!key) {
-                        setAiResult("Без ключа ИИ не может работать.");
-                        setIsLoading(false);
-                        return;
-                    }
-                    localStorage.setItem('userApiKey', key);
-                }
+    // сначала проверяем ключ
+    let activeKey = localStorage.getItem('userApiKey');
+    
+    if (!activeKey) {
+        const key = prompt("пожалуйста, введите ваш рабочий api-ключ от gemini:");
+        if (!key) {
+            alert("без ключа ии не может работать.");
+            return;
+        }
+        localStorage.setItem('userApiKey', key);
+        activeKey = key;
+    }
 
-                const prompt = `
-                Действуй как опытный психолог, эксперт по психосоматике и коуч. Твоя задача - проанализировать ответы клиента и выдать глубокую, эмпатичную расшифровку его первопричины.
-                Язык ответа: ${lang === 'ru' ? 'Русский' : 'Казахский'}.
-                Данные клиента:
-                Имя: ${formData.name}
-                Здоровье: ${formData.health}
-                Отношения: ${formData.relationships}
-                Деньги/Карьера: ${formData.money}
-                Самооценка/Духовность: ${formData.selfEsteem}
-                Давность: ${formData.time}
-                Ситуация: ${formData.situation}
-                Эмоции: ${formData.emotions.join(', ')}
-                `;
+    setIsLoading(true);
+    setStep(10);
+    
+    // используем актуальную модель, которую ты назвала
+    const model = "gemini-3.1-flash-lite";
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${activeKey}`;
 
-                try {
-                    const data = await fetchWithBackoff(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${localStorage.getItem('userApiKey')}`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-                    });
-                    
-                    let aiText = data.candidates?.[0]?.content?.parts?.[0]?.text || "Ошибка получения ответа.";
-                    setAiResult(aiText);
-                    saveToDb(aiText);
-                } catch (error) {
-                    setAiResult("Ошибка API. Проверьте ваш ключ в настройках (можно очистить кеш браузера, чтобы ввести ключ заново).");
-                } finally {
-                    setIsLoading(false);
-                }
-            };
+    const promptText = `проанализируй данные: ${JSON.stringify(formData)}. язык: ${lang === 'ru' ? 'русский' : 'казахский'}.`;
+
+    try {
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: promptText }] }]
+            })
+        });
+
+        const data = await response.json();
+        
+        if (data.error) {
+            console.error("ошибка api:", data.error);
+            setAiResult("ошибка api: " + data.error.message);
+        } else {
+            const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text || "ответ от ии пуст.";
+            setAiResult(aiText);
+            saveToDb(aiText);
+        }
+    } catch (error) {
+        console.error("критическая ошибка:", error);
+        setAiResult("ошибка сети. проверьте интернет или api-ключ.");
+    } finally {
+        setIsLoading(false);
+    }
+};
 
             const handlePasswordSubmit = () => {
                 if (passwordInput === 'kemelgroup2026R') {
