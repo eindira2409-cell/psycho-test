@@ -460,6 +460,7 @@
                         ...formData, 
                         result: htmlResult, 
                         review: '', // Поле для отзыва
+                        clickedButtons: [], // Для отслеживания нажатых кнопок
                         date: new Date().toLocaleString() 
                     };
                     
@@ -484,6 +485,26 @@
                 
                 setShowReviewModal(false);
                 setReviewSubmitted(true);
+            };
+
+            // Функция для сохранения нажатий на кнопки
+            const trackButtonClick = (btnName, url = null) => {
+                if (currentRecordId) {
+                    const updatedDb = db.map(record => {
+                        if (record.id === currentRecordId) {
+                            const btns = record.clickedButtons || [];
+                            if (!btns.includes(btnName)) {
+                                return { ...record, clickedButtons: [...btns, btnName] };
+                            }
+                        }
+                        return record;
+                    });
+                    setDb(updatedDb);
+                    localStorage.setItem('psychoBotDB', JSON.stringify(updatedDb));
+                }
+                if (url) {
+                    window.open(url, '_blank', 'noopener,noreferrer');
+                }
             };
 
             const handlePasswordSubmit = () => {
@@ -682,7 +703,7 @@
                                                 <span>{t.reviewSent}</span>
                                             </div>
                                         ) : (
-                                            <button onClick={() => setShowReviewModal(true)}
+                                            <button onClick={() => { trackButtonClick('Отзыв'); setShowReviewModal(true); }}
                                                className="flex items-center justify-center py-3.5 bg-[#FFCC00] text-gray-900 rounded-xl font-bold text-[14px] shadow-sm active:scale-95 transition-all text-center px-2">
                                                 <i className="fa-solid fa-star mr-1.5"></i>
                                                 <span>{t.reviewBtn}</span>
@@ -690,7 +711,7 @@
                                         )}
                                         
                                         {/* Кнопка уроков */}
-                                        <a href={LINK_LESSONS} target="_blank" rel="noopener noreferrer" 
+                                        <a href={LINK_LESSONS} onClick={(e) => { e.preventDefault(); trackButtonClick('Бесплатные уроки', LINK_LESSONS); }}
                                            className="flex items-center justify-center py-3.5 bg-[#007AFF] text-white rounded-xl font-bold text-[14px] shadow-sm active:scale-95 transition-all text-center px-2">
                                             <i className="fa-brands fa-telegram mr-1.5 text-lg"></i>
                                             <span>{t.lessonsBtn}</span>
@@ -698,7 +719,7 @@
                                     </div>
                                     
                                     {/* Кнопка консультации */}
-                                    <a href={LINK_CONSULTATION} target="_blank" rel="noopener noreferrer" 
+                                    <a href={LINK_CONSULTATION} onClick={(e) => { e.preventDefault(); trackButtonClick('Консультация', LINK_CONSULTATION); }}
                                        className="flex items-center justify-center w-full py-4 bg-[#34C759] text-white rounded-[18px] font-bold text-[16px] shadow-md shadow-green-500/20 active:scale-95 transition-all text-center">
                                         <i className="fa-solid fa-calendar-check mr-2 text-lg"></i>
                                         <span>{t.consultBtn}</span>
@@ -730,23 +751,48 @@
                                             </div>
                                             <span className="text-xs text-gray-500">{record.date}</span>
                                         </div>
-                                        <div className="grid grid-cols-1 gap-2 text-sm text-gray-300 mb-4">
-                                            <p><span className="text-gray-500">Здоровье:</span> {record.health}</p>
-                                            <p><span className="text-gray-500">Отношения:</span> {record.relationships}</p>
-                                            <p><span className="text-gray-500">Деньги:</span> {record.money}</p>
-                                            <p><span className="text-gray-500">Самооценка:</span> {record.selfEsteem}</p>
-                                            <p><span className="text-gray-500">Ситуация:</span> {record.situation}</p>
+                                        
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-300 mb-4 bg-gray-900 p-4 rounded-lg border border-gray-700">
+                                            <div className="space-y-2">
+                                                <p><span className="text-gray-500 font-semibold block">Здоровье:</span> {record.health || '-'}</p>
+                                                <p><span className="text-gray-500 font-semibold block">Отношения:</span> {record.relationships || '-'}</p>
+                                                <p><span className="text-gray-500 font-semibold block">Деньги:</span> {record.money || '-'}</p>
+                                                <p><span className="text-gray-500 font-semibold block">Самооценка:</span> {record.selfEsteem || '-'}</p>
+                                            </div>
+                                            <div className="space-y-2">
+                                                <p><span className="text-gray-500 font-semibold block">Давность:</span> {(record.time === 'Свой вариант' || record.time === 'Өз нұсқам') ? record.customTime : (record.time || '-')}</p>
+                                                <p><span className="text-gray-500 font-semibold block">Ситуация:</span> {record.situation || '-'}</p>
+                                                <p><span className="text-gray-500 font-semibold block">Эмоции:</span> {record.emotions?.join(', ')} {record.customEmotion ? `(${record.customEmotion})` : ''}</p>
+                                                <p><span className="text-gray-500 font-semibold block">Нажатые кнопки:</span> 
+                                                    {record.clickedButtons?.length > 0 ? (
+                                                        <span className="text-blue-400 font-medium">{record.clickedButtons.join(' ➔ ')}</span>
+                                                    ) : (
+                                                        <span className="text-gray-600">Не нажимал(а)</span>
+                                                    )}
+                                                </p>
+                                            </div>
                                         </div>
                                         
                                         {/* Блок с отзывом клиента в админке */}
                                         {record.review && (
-                                            <div className="mt-4 p-4 bg-gray-900 border border-[#FFCC00]/30 rounded-lg text-sm text-yellow-500">
+                                            <div className="mb-4 p-4 bg-gray-900 border border-[#FFCC00]/30 rounded-lg text-sm text-yellow-500">
                                                 <div className="flex items-center mb-2">
                                                     <i className="fa-solid fa-star text-[#FFCC00] mr-2"></i>
                                                     <strong className="text-white">Отзыв клиента:</strong>
                                                 </div>
                                                 <p className="italic">«{record.review}»</p>
                                             </div>
+                                        )}
+
+                                        {/* Скрытый блок с полной расшифровкой */}
+                                        {record.result && (
+                                            <details className="mt-2 group">
+                                                <summary className="text-blue-400 cursor-pointer text-sm font-semibold outline-none hover:text-blue-300 transition-colors">
+                                                    Показать полную расшифровку
+                                                </summary>
+                                                <div className="mt-3 bg-white text-black p-5 rounded-xl text-sm max-h-96 overflow-y-auto custom-markdown border-2 border-gray-600 shadow-inner" dangerouslySetInnerHTML={{ __html: record.result }}>
+                                                </div>
+                                            </details>
                                         )}
                                     </div>
                                 ))}
