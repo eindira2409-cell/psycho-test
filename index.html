@@ -70,6 +70,7 @@
         const WHATSAPP_NUMBER = "77076151515";
         const LINK_LESSONS = "https://t.me/+coLddGsQ5981OWUy"; 
         const LINK_CONSULTATION = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent("Здравствуйте! Хочу записаться на платную консультацию по результатам теста.")}`;
+        const GOOGLE_SHEET_URL = "https://script.google.com/macros/s/AKfycbwSxxChxKfAXCc5RsAtrcaF77nqQJETNj0s_2LVOst4_xwFJZheMx1lL3QYKcmKgcldkA/exec";
 
         // Детализированная база знаний
         const PSYCHO_DB = {
@@ -281,6 +282,32 @@
                 if (savedDb) setDb(JSON.parse(savedDb));
             }, []);
 
+            const sendToGoogleSheet = (recordToSave) => {
+                const payload = {
+                    id: recordToSave.id,
+                    date: recordToSave.date || new Date().toLocaleString(),
+                    name: recordToSave.name || '',
+                    phone: recordToSave.phone || '',
+                    health: recordToSave.health || '',
+                    relationships: recordToSave.relationships || '',
+                    money: recordToSave.money || '',
+                    selfEsteem: recordToSave.selfEsteem || '',
+                    time: (recordToSave.time === 'Свой вариант' || recordToSave.time === 'Өз нұсқам') ? recordToSave.customTime : recordToSave.time,
+                    situation: recordToSave.situation || '',
+                    emotions: (recordToSave.emotions || []).join(', ') + (recordToSave.customEmotion ? ` (${recordToSave.customEmotion})` : ''),
+                    result: recordToSave.result || '',
+                    review: recordToSave.review || '',
+                    clickedButtons: (recordToSave.clickedButtons || []).join(', ')
+                };
+
+                fetch(GOOGLE_SHEET_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                }).catch(err => console.log('Ошибка при отправке в Google Sheets:', err));
+            };
+
             const translations = {
                 ru: {
                     chooseLang: "Выберите язык", welcomeTitle: "О тесте",
@@ -468,6 +495,8 @@
                     setDb(updatedDb);
                     localStorage.setItem('psychoBotDB', JSON.stringify(updatedDb));
                     
+                    sendToGoogleSheet(newRecord);
+                    
                     setIsLoading(false);
                 }, 1500); 
             };
@@ -476,9 +505,14 @@
                 if (!reviewInput.trim()) return;
                 
                 // Обновляем отзыв в базе данных у конкретного клиента
-                const updatedDb = db.map(record => 
-                    record.id === currentRecordId ? { ...record, review: reviewInput } : record
-                );
+                const updatedDb = db.map(record => {
+                    if (record.id === currentRecordId) {
+                        const updatedRecord = { ...record, review: reviewInput };
+                        sendToGoogleSheet(updatedRecord);
+                        return updatedRecord;
+                    }
+                    return record;
+                });
                 
                 setDb(updatedDb);
                 localStorage.setItem('psychoBotDB', JSON.stringify(updatedDb));
@@ -494,7 +528,9 @@
                         if (record.id === currentRecordId) {
                             const btns = record.clickedButtons || [];
                             if (!btns.includes(btnName)) {
-                                return { ...record, clickedButtons: [...btns, btnName] };
+                                const updatedRecord = { ...record, clickedButtons: [...btns, btnName] };
+                                sendToGoogleSheet(updatedRecord);
+                                return updatedRecord;
                             }
                         }
                         return record;
